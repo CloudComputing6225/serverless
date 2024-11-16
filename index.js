@@ -1,3 +1,4 @@
+import AWS from 'aws-sdk';
 import mailgun from 'mailgun-js';
 import mysql from 'mysql2/promise';
 import crypto from 'crypto';
@@ -13,7 +14,7 @@ const dbConfig = {
   database: process.env.DB_NAME,
 };
 
-export async function handler(event) {
+export const handler = async (event) => {
   const message = JSON.parse(event.Records[0].Sns.Message);
   const { userId, email, firstName } = message;
 
