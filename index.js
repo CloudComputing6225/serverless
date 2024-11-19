@@ -1,38 +1,22 @@
-import AWS from 'aws-sdk';
 import mailgun from 'mailgun-js';
-import mysql from 'mysql2/promise';
-import crypto from 'crypto';
-import 'dotenv/config';
+import AWS from 'aws-sdk';
 
-
-const mg = mailgun({ apiKey: process.env.MAILGUN_API_KEY, domain: process.env.MAILGUN_DOMAIN });
-
-const dbConfig = {
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-};
+const mg = mailgun({
+  apiKey: process.env.MAILGUN_API_KEY,
+  domain: process.env.MAILGUN_DOMAIN
+});
 
 export const handler = async (event) => {
-  const message = JSON.parse(event.Records[0].Sns.Message);
-  const { userId, email, firstName } = message;
+  console.log('Lambda function invoked with event:', JSON.stringify(event));
 
   try {
-    const connection = await mysql.createConnection(dbConfig);
+    const message = JSON.parse(event.Records[0].Sns.Message);
+    console.log('Parsed SNS message:', message);
 
-    // Generate verification token
-    const token = crypto.randomBytes(20).toString('hex');
-    const expirationTime = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes from now
-
-    // Store token in database
-    await connection.execute(
-      'UPDATE users SET verification_token = ?, verification_token_expires = ? WHERE id = ?',
-      [token, expirationTime, userId]
-    );
+    const { userId, email, firstName, verificationToken } = message;
 
     // Send verification email
-    const verificationLink = `https://your-api-domain.com/v2/verify?token=${token}`;
+    const verificationLink = `http://dev.saurabhprojects.me/v2/verify?token=${verificationToken}`;
     const data = {
       from: 'noreply@saurabhprojects.me',
       to: email,
@@ -43,8 +27,13 @@ export const handler = async (event) => {
 
     await new Promise((resolve, reject) => {
       mg.messages().send(data, (error, body) => {
-        if (error) reject(error);
-        else resolve(body);
+        if (error) {
+          console.error('Error sending email:', error);
+          reject(error);
+        } else {
+          console.log('Email sent successfully:', body);
+          resolve(body);
+        }
       });
     });
 
@@ -52,6 +41,6 @@ export const handler = async (event) => {
     return { statusCode: 200, body: JSON.stringify({ message: 'Verification email sent' }) };
   } catch (error) {
     console.error('Error processing verification:', error);
-    return { statusCode: 500, body: JSON.stringify({ message: 'Error processing verification' }) };
+    return { statusCode: 400, body: JSON.stringify({ message: 'Error processing verification' }) };
   }
 };
